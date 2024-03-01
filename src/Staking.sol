@@ -67,6 +67,12 @@ contract Staking {
 
     /// @notice Claim rewards for staking.
     /// @notice Users can claim 1 token per staking token per week.
+
+    // @audit-notes : claim rewards function means if I deposited 2 token for a week so
+    // I can claim 2*1 = 2 love token reward.
+    // if I deposited 8 tokens for 4 weeks . Then I can claim  8*4=32 love token reward.
+    // it means no. of weeks * no. of tokens.
+    // @audit-issue : 
     function claimRewards() public {
         uint256 soulmateId = soulmateContract.ownerToId(msg.sender);
         // first claim

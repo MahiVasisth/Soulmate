@@ -32,5 +32,21 @@ contract AirdropTest is BaseTest {
         airdropContract.claim();
 
         assertTrue(loveToken.balanceOf(soulmate2) == 200 ether);
+        
+        assertTrue(loveToken.balanceOf(soulmate1) == 200 ether);
+
     }
+    // @audit : check for singles can claim love token from airdrop 
+    function test_singlescanClaim() public {
+        vm.prank(attacker);
+
+        vm.warp(block.timestamp + 200 days + 1 seconds);
+         vm.expectRevert();
+        airdropContract.claim();
+
+        // assertTrue(loveToken.balanceOf(attacker) == 200 ether);
+
+        
+    }
+
 }

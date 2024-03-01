@@ -15,6 +15,7 @@ contract Vault {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
+    // @audit - issue : lack of solidity syntax rules
     bool public vaultInitialize;
 
     /*//////////////////////////////////////////////////////////////
@@ -24,9 +25,12 @@ contract Vault {
     /// @notice Init vault with the loveToken.
     /// @notice Vault will approve its corresponding management contract to handle tokens.
     /// @notice vaultInitialize protect against multiple initialization.
+    // @audit-issue : reentrancy issue possible
+    // @audit-issue : It will not protect against multiple initialization
     function initVault(ILoveToken loveToken, address managerContract) public {
         if (vaultInitialize) revert Vault__AlreadyInitialized();
         loveToken.initVault(managerContract);
         vaultInitialize = true;
+        
     }
 }

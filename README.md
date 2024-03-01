@@ -145,3 +145,344 @@ None
 # Known Issues
 
 - Eventually, the counter used to give ids will reach the `type(uint256).max` and no more will be able to be minted. This is known and can be ignored.
+
+### Title : There is a lack of check that either people have soulmate or not in Airdrop :: claim() so that any person which have not any soulmate can also claim love token.
+## Summary
+ In Airdrop :: claim() function both partner of a couple can claim their own token every days on the basis of their Soulmate NFT token.
+  ## Vulnerability Details 
+  But this function is only checked for the mapping is either couple divorced or not.It will not check that is the soulmate of the msg.sender exist or not. The result is this anyone who not mint an SoulmateToken can also claim love token from this function.
+## Code Snippet
+ function claim() public {
+        // No LoveToken for people who don't love their soulmates anymore.
+        // @audit-issue : Lack of check that either it have soulmate or not
+        if (soulmateContract.isDivorced()) revert Airdrop__CoupleIsDivorced();
+        // Calculating since how long soulmates are reunited
+        uint256 numberOfDaysInCouple = (block.timestamp -
+            soulmateContract.idToCreationTimestamp(0
+                soulmateContract.ownerToId(msg.sender)
+            )) / daysInSecond;
+
+        uint256 amountAlreadyClaimed = _claimedBy[msg.sender];
+
+        if (
+            amountAlreadyClaimed >=
+            numberOfDaysInCouple * 10 ** loveToken.decimals()
+        ) revert Airdrop__PreviousTokenAlreadyClaimed();
+
+        uint256 tokenAmountToDistribute = (numberOfDaysInCouple *
+            10 ** loveToken.decimals()) - amountAlreadyClaimed;
+
+        // Dust collector
+        if (
+            tokenAmountToDistribute >=
+            loveToken.balanceOf(address(airdropVault))
+        ) {
+            tokenAmountToDistribute = loveToken.balanceOf(
+                address(airdropVault)
+            );
+        }
+        _claimedBy[msg.sender] += tokenAmountToDistribute;
+
+        emit TokenClaimed(msg.sender, tokenAmountToDistribute);
+
+        loveToken.transferFrom(
+            address(airdropVault),
+            msg.sender,
+            tokenAmountToDistribute
+        );
+    }
+
+## Impact
+The impact is this the people who have not soulmates can claim love token.
+##POC
+    function test_singlescanClaim() public {
+        vm.prank(attacker);
+    
+        vm.warp(block.timestamp + 200 days + 1 seconds);
+
+        vm.prank(attacker);
+        airdropContract.claim();
+        assertTrue(loveToken.balanceOf(attacker) == 200 ether);
+    }
+
+## Tools Used
+   Foundry
+## Recommendations 
+Its recommended to add an additional check in claim function which check for soulmate of msg.sender is exist or not.
+  function claim() public {
+        // No LoveToken for people who don't love their soulmates anymore.
+        if (soulmateContract.isDivorced()) revert Airdrop__CoupleIsDivorced();
+           // @audit - recommended
+          address soulmate2 = soulmateContract.soulmateOf(msg.sender);
+          require(soulmate2!=address(0));
+        // Calculating since how long soulmates are reunited
+        uint256 numberOfDaysInCouple = (block.timestamp -
+            soulmateContract.idToCreationTimestamp(
+                soulmateContract.ownerToId(msg.sender)
+            )) / daysInSecond;
+
+        uint256 amountAlreadyClaimed = _claimedBy[msg.sender];
+
+        if (
+            amountAlreadyClaimed >=
+            numberOfDaysInCouple * 10 ** loveToken.decimals()
+        ) revert Airdrop__PreviousTokenAlreadyClaimed();
+
+        uint256 tokenAmountToDistribute = (numberOfDaysInCouple *
+            10 ** loveToken.decimals()) - amountAlreadyClaimed;
+
+        // Dust collector
+        if (
+            tokenAmountToDistribute >=
+            loveToken.balanceOf(address(airdropVault))
+        ) {
+            tokenAmountToDistribute = loveToken.balanceOf(
+                address(airdropVault)
+            );
+        }
+        _claimedBy[msg.sender] += tokenAmountToDistribute;
+
+        emit TokenClaimed(msg.sender, tokenAmountToDistribute);
+
+        loveToken.transferFrom(
+            address(airdropVault),
+            msg.sender,
+            tokenAmountToDistribute
+        );
+    }
+  ## POC :
+  Now its correct If the people have not soulmate then it can't claim love token.  
+   function test_youcannotClaimlove_token_if_youaresingle() public {
+        vm.prank(attacker);
+     
+        vm.warp(block.timestamp + 200 days + 1 seconds);
+
+        vm.prank(attacker);
+        vm.expectRevert();
+        airdropContract.claim();
+    }
+
+     
+
+ 2.
+### Title : Lack of check for either soulmate exist or not in Soulmate :: writeMessageInSharedSpace() function so that persons who have no NFT ID can take advantage.
+## Summary
+ Soulmate :: writeMessageInSharedSpace() function allows any soulmates with the same NFT ID to write in a shared space on blockchain.But there is possible that the persons who have no NFT ID can also write and read there.
+## Vulnerability Details 
+   In Soulmate :: writeMessageInSharedSpace() function we are checking for soulmate by ownerToId[msg.sender]. But what If the person who calls this function for writing message have no NFT ID can also write and read message there.
+## Code Snippet
+     function writeMessageInSharedSpace(string calldata message) external {
+        // @audit : Lack of check that either soulmate exist or not.  
+        uint256 id = ownerToId[msg.sender];
+        sharedSpace[id] = message;
+        emit MessageWrittenInSharedSpace(id, message);
+    } 
+## Impact
+  The impact is this there is no control on only soulmates can add the touch of romantism according to documentation.
+## POC
+    function test_auditWriteAndReadSharedSpace() public {
+        vm.prank(address(1));
+        soulmateContract.writeMessageInSharedSpace("Buy some eggs");
+        vm.prank(address(2));
+       
+        string memory message = soulmateContract.readMessageInSharedSpace();
+
+        string[4] memory possibleText = [
+            "Buy some eggs, sweetheart",
+            "Buy some eggs, darling",
+            "Buy some eggs, my dear",
+            "Buy some eggs, honey"
+        ];
+        bool found;
+        for (uint i; i < possibleText.length; i++) {
+            if (compare(possibleText[i], message)) {
+                found = true;
+                break;
+            }
+        }
+        console2.log(message);
+        assertTrue(found);
+    }
+## Tools Used
+ Foundry
+## Recommendations 
+Add a check that the person must have soulmate exist before it write message to shared space. 
+   function writeMessageInSharedSpace(string calldata message) external {
+        address soulmate2 = soulmateOf[msg.sender];
+         require(soulmate2!=address(0));
+        uint256 id = ownerToId[msg.sender];
+        sharedSpace[id] = message;
+        emit MessageWrittenInSharedSpace(id, message);
+    }
+
+  ## POC :
+  Now only person have soulmates can write message.
+   function test_writemessagerevertforsinglepeople() public {
+        vm.prank(address(1));
+        vm.expectRevert();
+        soulmateContract.writeMessageInSharedSpace("Buy some eggs");
+        }
+   
+  
+
+     
+3. 
+### Title :
+Lack of check for soulmate address in Soulmate :: readMessageInSharedSpace() function so that it will contain privacy issues for the person which have NFT ID is zero. 
+## Summary
+Soulmate :: readMessageInSharedSpace() function allows any soulmates with the same NFT ID to read in a shared space on blockchain but it will contain privacy issues for the address which have zero NFT ID.
+## Vulnerability Details
+   In Soulmate :: readMessageInSharedSpace() function we are checking for soulmate by ownerToId[msg.sender]. But what if any third person can read your message.Its possible when
+   (a). You are the first person which call mint soulmate token before you anybody is not minted any token.So that your NFT ID contains zero value. (Here two soulmates are alice and charlie). It means any person which have zero value of NFT ID can read your message. 
+   (b). If I am any third person bob which not call mint soulmate function. So that  NFT ID of bob is also zero.
+   According to function working bob have the rights to read the message written by alice for charlie.
+ 
+## Code Snippet
+  /// @notice Allows any soulmates with the same NFT ID to read in a shared space on blockchain.
+    function readMessageInSharedSpace() external view returns (string memory) {
+        // Add a little touch of romantism
+        return
+            string.concat(
+                sharedSpace[ownerToId[msg.sender]],
+                ", ",
+                niceWords[block.timestamp % niceWords.length]
+            );
+    }
+
+## Impact
+The impact is that the person with zero NFT ID have lack of privacy for their message.
+## POC
+function test_ThirdpersoncanReadSharedSpace() public {
+        vm.prank(alice);
+        
+        soulmateContract.mintSoulmateToken();
+        vm.prank(charlie);
+       
+        soulmateContract.mintSoulmateToken();
+        vm.prank(alice);
+       
+        soulmateContract.writeMessageInSharedSpace("Buy some eggs");
+        vm.prank(charlie);
+       
+        string memory message = soulmateContract.readMessageInSharedSpace();
+
+        string[4] memory possibleText = [
+            "Buy some eggs, sweetheart",
+            "Buy some eggs, darling",
+            "Buy some eggs, my dear",
+            "Buy some eggs, honey"
+        ];
+        bool found;
+        for (uint i; i < possibleText.length; i++) {
+            if (compare(possibleText[i], message)) {
+                found = true;
+                break;
+            }
+        }
+        console2.log(message);
+        assertTrue(found);
+        vm.prank(bob);
+        
+        string memory message1 = soulmateContract.readMessageInSharedSpace();
+
+        string[4] memory possibleText1 = [
+            "Buy some eggs, sweetheart",
+            "Buy some eggs, darling",
+            "Buy some eggs, my dear",
+            "Buy some eggs, honey"
+        ];
+        bool found1;
+        for (uint i; i < possibleText1.length; i++) {
+            if (compare(possibleText1[i], message1)) {
+                found1 = true;
+                break;
+            }
+        }
+        console2.log(message1);
+        assertTrue(found1);
+    
+    }    
+
+## Tools Used
+ Foundry
+## Recommendations 
+Recommendation to check for soulmate address existence.
+
+ /// @notice Allows any soulmates with the same NFT ID to read in a shared space on blockchain.
+    function readMessageInSharedSpace() external view returns (string memory) {
+        // Add a little touch of romantism
+        address soulmate2 = soulmateOf[msg.sender];
+        require(soulmate2!=address(0));
+        return
+            string.concat(
+                sharedSpace[ownerToId[msg.sender]],
+                ", ",
+                niceWords[block.timestamp % niceWords.length]
+            );
+    }
+
+  ## POC :
+  function test_ThirdpersoncannotReadSharedSpace() public {
+        vm.prank(alice);
+        
+        soulmateContract.mintSoulmateToken();
+        vm.prank(charlie);
+       
+        soulmateContract.mintSoulmateToken();
+        vm.prank(alice);
+       
+        soulmateContract.writeMessageInSharedSpace("Buy some eggs");
+        vm.prank(charlie);
+       
+        string memory message = soulmateContract.readMessageInSharedSpace();
+
+        string[4] memory possibleText = [
+            "Buy some eggs, sweetheart",
+            "Buy some eggs, darling",
+            "Buy some eggs, my dear",
+            "Buy some eggs, honey"
+        ];
+        bool found;
+        for (uint i; i < possibleText.length; i++) {
+            if (compare(possibleText[i], message)) {
+                found = true;
+                break;
+            }
+        }
+        console2.log(message);
+        assertTrue(found);
+        vm.prank(bob);
+        vm.expectRevert(); 
+        string memory message1 = soulmateContract.readMessageInSharedSpace();
+  }
+    
+
+4 . 
+### Title :
+ Lack of CEI in Vault :: InitVault() so that reentrancy issue is possible. 
+## Summary
+ Vault :: InitVault() is used approve its corresponding management contract to handle tokens. vaultInitialize protect against multiple initialization.
+    
+## Vulnerability Details
+The  `InitVault()` function is not properly follows checks effects pattern . This allows an attacker to call `InitVault()` multiple times.
+## Code Snippet
+     function initVault(ILoveToken loveToken, address managerContract) public {
+        if (vaultInitialize) revert Vault__AlreadyInitialized();
+        @audit-issue : Lack of CEI.
+        loveToken.initVault(managerContract);
+        vaultInitialize = true;
+      }
+
+## Impact
+The imact is that vault can initialize multiple times.
+## Tools Used
+ Manual check
+## Recommendations 
+Try to write this function like this.
+  function initVault(ILoveToken loveToken, address managerContract) public {
+        if (vaultInitialize) revert Vault__AlreadyInitialized();
+        vaultInitialize = true;
+        loveToken.initVault(managerContract);
+      }
+
+

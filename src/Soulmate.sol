@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {ERC721} from "@solmate/tokens/ERC721.sol";
-
+import {console} from "forge-std/Test.sol";
 /// @title Soulmate Soulbound NFT.
 /// @author n0kto
 /// @notice A Soulbound NFT sharing by soulmates.
@@ -17,7 +17,7 @@ contract Soulmate is ERC721 {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-
+    // @audit-issue : lack of solidity naming convention
     string[4] niceWords = ["sweetheart", "darling", "my dear", "honey"];
 
     mapping(uint256 id => address[2] owners) private idToOwners;
@@ -103,15 +103,35 @@ contract Soulmate is ERC721 {
 
     /// @notice Allows any soulmates with the same NFT ID to write in a shared space on blockchain.
     /// @param message The message to write in the shared space.
-    function writeMessageInSharedSpace(string calldata message) external {
+    // @audit-issue :   we can write message if we have not soulmate There is a lack of check that either have a soulmate or not.
+    // @audit-issue : It can be possible that peoples are not soulmates because they have nft id is also 0.Try to add a check with
+    // soulmates mapping.If people have not soulmates it will consider as 0 nft id and it have rights to write message in shared space.
+    // because it will consider as they are first couple who minted love token.
+   /* function writeMessageInSharedSpace(string calldata message) external {
+        // @audit : Lack of check that either soulmate exist or not.  
         uint256 id = ownerToId[msg.sender];
         sharedSpace[id] = message;
         emit MessageWrittenInSharedSpace(id, message);
+    }*/
+    // @audit
+    // Recommended
+   function writeMessageInSharedSpace(string calldata message) external {
+        address soulmate2 = soulmateOf[msg.sender];
+         require(soulmate2!=address(0));
+        uint256 id = ownerToId[msg.sender];
+        console.log(id);
+        // require(id!=0);
+        sharedSpace[id] = message;
+        emit MessageWrittenInSharedSpace(id, message);
     }
+    
+    
 
     /// @notice Allows any soulmates with the same NFT ID to read in a shared space on blockchain.
     function readMessageInSharedSpace() external view returns (string memory) {
         // Add a little touch of romantism
+        address soulmate2 = soulmateOf[msg.sender];
+        require(soulmate2!=address(0));
         return
             string.concat(
                 sharedSpace[ownerToId[msg.sender]],
@@ -121,10 +141,20 @@ contract Soulmate is ERC721 {
     }
 
     /// @notice Cancel possibily for 2 lovers to collect LoveToken from the airdrop.
+    // @audit-note : is after divorced people can found other soulmate or not .
+    // @audit-notes : After divorced the souls are connected but divorced.
+    // @audit-note : after divorce we have to set the address(0) for the soulmate.The possibility 
+    // is that if anyone take divorced after that he/she is can not find the other soul for connection.
+    // he/she have to stay single.
+    // @audit-note : is after divorce we check the soulmate of msg.sender it will showed same.
+    // it means after divorce they are also soulmates.  
+    // @audit-note : what about soulmate token after divorce.
+    // @audit-issue : soulmate considered as soulmate even after divorce
     function getDivorced() public {
         address soulmate2 = soulmateOf[msg.sender];
         divorced[msg.sender] = true;
         divorced[soulmateOf[msg.sender]] = true;
+        //  soulmateOf[msg.sender] = address(0);
         emit CoupleHasDivorced(msg.sender, soulmate2);
     }
 
